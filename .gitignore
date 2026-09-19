@@ -1,0 +1,11 @@
+.env
+__pycache__/
+*.pyc
+data/*.db
+data/*.wav
+data/*.mp3
+node_modules/
+dist/
+.venv/
+venv/
+logs/

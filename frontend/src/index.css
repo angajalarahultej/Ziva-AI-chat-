@@ -1,0 +1,41 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body { background: #07080c; color: #eef2f7; }
+
+.astra-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+  background-size: 52px 52px;
+  mask-image: radial-gradient(ellipse 90% 75% at 50% 30%, black 30%, transparent 100%);
+}
+
+.glass-bar {
+  background: linear-gradient(180deg, rgba(24, 30, 40, 0.85), rgba(12, 16, 24, 0.9));
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(14px);
+}
+
+@keyframes blob-morph {
+  0%, 100% { border-radius: 46% 54% 56% 44% / 68% 70% 30% 32%; }
+  33% { border-radius: 54% 46% 44% 56% / 62% 66% 34% 38%; }
+  66% { border-radius: 50% 50% 52% 48% / 70% 62% 38% 30%; }
+}
+
+@keyframes blob-drift {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 -16px; }
+}
+
+.blob-shape {
+  animation: blob-morph 14s ease-in-out infinite, blob-drift 7s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.pulse-dot { animation: pulse-dot 1.6s ease-in-out infinite; }
