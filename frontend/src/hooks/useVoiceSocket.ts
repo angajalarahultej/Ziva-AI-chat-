@@ -101,7 +101,10 @@ export function useVoiceSocket() {
       }
     };
     sock.onclose = () => setState("OFFLINE");
-    sock.onerror = () => setState("ERROR");
+    sock.onerror = () => {
+      setState("ERROR");
+      push({ role: "assistant", text: "⚠️ Can't reach Ziva's backend on this machine — is it running (port 8000)?" });
+    };
   };
 
   const disconnect = () => {
@@ -180,9 +183,15 @@ export function useVoiceSocket() {
 
   /** Hold-to-talk: start/stop mic recording, send one audio_chunk per utterance. */
   const startTalk = async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-    });
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
+    } catch {
+      push({ role: "assistant", text: "🎙 Microphone blocked — click the lock icon in the address bar, Allow the mic, then reload." });
+      return;
+    }
     const rec = new MediaRecorder(stream, { mimeType: "audio/webm" });
     media.current = rec;
     chunks.current = [];
@@ -273,9 +282,15 @@ export function useVoiceSocket() {
 
   const startCall = async () => {
     if (!ws.current || ws.current.readyState !== WebSocket.OPEN) connect();
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-    });
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
+    } catch {
+      push({ role: "assistant", text: "🎙 Microphone blocked — click the lock icon in the address bar, Allow the mic, then reload." });
+      return;
+    }
     const ctx = new AudioContext();
     const src = ctx.createMediaStreamSource(stream);
     const analyser = ctx.createAnalyser();
