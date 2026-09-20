@@ -57,7 +57,8 @@ export function useVoiceSocket() {
     ws.current = sock;
     sock.onopen = () => {
       setState("ONLINE");
-      sock.send(JSON.stringify({ event: "config", language_preference: langPref, conversation_id: conversationId }));
+      sock.send(JSON.stringify({ event: "config", language_preference: langPref,
+        conversation_id: conversationId, voice: "browser" }));
     };
     sock.onmessage = async (ev) => {
       const m = JSON.parse(ev.data);
@@ -360,12 +361,12 @@ export function useVoiceSocket() {
         }
       } else {
         // Capturing: refresh the voice clock on any sound, end the turn only
-        // after a full 2s of quiet — pauses between words/sentences stay
+        // after a full 1.2s of quiet — pauses between words/sentences stay
         // in ONE turn instead of splitting into two questions.
         if (lv >= 0.035) c.lastVoice = now;
         const quietFor = now - c.lastVoice;
         const tooLong = now - c.startedAt > 25000;
-        if (quietFor >= 2000 || tooLong) endCapture();
+        if (quietFor >= 1200 || tooLong) endCapture();
       }
       requestAnimationFrame(tick);
     };

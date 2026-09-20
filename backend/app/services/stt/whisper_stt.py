@@ -1,5 +1,6 @@
 """Local Whisper via faster-whisper. Free, no key, handles en + te + code-switch.
 Falls back to stub mode if the package/model isn't installed so the app still runs."""
+import asyncio
 import re
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -50,10 +51,10 @@ class WhisperSTT(STTProvider):
 
     async def transcribe(self, audio_path: str, language_hint: str = "auto") -> str:
         model = self._load()
-        # multilingual whisper auto-detects; Telugu/English/code-switch works out of the box.
-        # vad_filter drops background noise/silence; the hallucination guards stop
-        # it inventing Portuguese/Urdu out of pure noise.
-        segments, info = model.transcribe(
+        # Blocking C++ inference MUST run in a thread — otherwise the entire
+        # server (health checks, new turns, other requests) freezes mid-STT.
+        segments, info = await asyncio.to_thread(
+            model.transcribe,
             audio_path, beam_size=5, vad_filter=True,
             vad_parameters={"min_silence_duration_ms": 500},
             condition_on_previous_text=False,

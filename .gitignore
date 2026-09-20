@@ -10,3 +10,4 @@ dist/
 venv/
 logs/
 .DS_Store
+mlx_models/

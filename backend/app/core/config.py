@@ -23,8 +23,10 @@ class Settings(BaseSettings):
     OPENROUTER_APP_TITLE: str = "Ziva"
 
     STT_PROVIDER: str = "whisper_local"
-    STT_MODEL_SIZE: str = "small"
+    STT_MODEL_SIZE: str = "base"
     STT_DEVICE: str = "auto"
+    # False = skip the ~3s noise-cleaning pass (faster; needs a quiet room)
+    STT_DENOISE: bool = False
 
     TTS_PROVIDER: str = "edge"
     TTS_VOICE_EN: str = "en-IN-NeerjaNeural"

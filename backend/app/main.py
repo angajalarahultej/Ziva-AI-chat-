@@ -1,6 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import Response
 from pathlib import Path
 import os
 import threading
@@ -17,11 +18,37 @@ _extra_origins = [o.strip() for o in os.getenv("FRONTEND_URLS", "").split(",") i
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173","https://frontend-nhngicwyf-angajalarahultejs-projects.vercel.app/", "http://127.0.0.1:5173", *_extra_origins],
+    # allow_origins=["http://localhost:5173", "http://127.0.0.1:5173",
+    #                "https://frontend-nhngicwyf-angajalarahultejs-projects.vercel.app",
+    #                *_extra_origins, "*"],
+    allow_origins=["*"],
+    
     allow_credentials=True,
     allow_methods=["*"],
+
     allow_headers=["*"],
+    expose_headers=["Access-Control-Allow-Private-Network"],
 )
+
+
+@app.middleware("http")
+async def private_network_access(request: Request, call_next):
+    """Let public-https pages (Vercel) reach this localhost server.
+
+    Chrome's Private Network Access blocks internet → localhost fetches
+    unless the server opts in with this header (preflight + responses)."""
+    if request.method == "OPTIONS" and request.headers.get(
+            "access-control-request-private-network"):
+        resp = Response(status=200)
+        resp.headers["Access-Control-Allow-Origin"] = request.headers.get("origin", "*")
+        resp.headers["Access-Control-Allow-Private-Network"] = "true"
+        resp.headers["Access-Control-Allow-Methods"] = "*"
+        resp.headers["Access-Control-Allow-Headers"] = "*"
+        resp.headers["Access-Control-Max-Age"] = "86400"
+        return resp
+    resp = await call_next(request)
+    resp.headers["Access-Control-Allow-Private-Network"] = "true"
+    return resp
 
 Path(__file__).resolve().parents[3].joinpath("data", "audio").mkdir(parents=True, exist_ok=True)
 

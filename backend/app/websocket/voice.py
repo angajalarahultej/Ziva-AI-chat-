@@ -27,11 +27,15 @@ router = APIRouter()
 
 @router.websocket("/ws/voice")
 async def voice_socket(ws: WebSocket):
-    await ws.accept()
+    # Private-Network opt-in on the 101 handshake so public-https pages
+    # (Vercel) may open this localhost socket in Chrome.
+    # NOTE: starlette wants raw byte-tuples here, not a str dict.
+    await ws.accept(headers=[(b"access-control-allow-private-network", b"true")])
     init_db()
     db: Session = SessionLocal()
     conversation_id: str | None = None
     lang_pref = "AUTO"
+    voice_mode = "server"  # or "browser": client speaks text itself, skip synth
     interrupted = False
     current: asyncio.Task | None = None
 
@@ -48,7 +52,8 @@ async def voice_socket(ws: WebSocket):
         nonlocal conversation_id
         try:
             conversation_id = await _handle_text(
-                ws, db, text, lang_pref, conversation_id, lambda: interrupted)
+                ws, db, text, lang_pref, conversation_id,
+                lambda: interrupted, voice_mode)
         except asyncio.CancelledError:
             # Superseded by a newer question — the new turn owns the UI now.
             return
@@ -62,6 +67,8 @@ async def voice_socket(ws: WebSocket):
             if kind == "config":
                 lang_pref = msg.get("language_preference", "AUTO")
                 conversation_id = msg.get("conversation_id") or conversation_id
+                if msg.get("voice") in ("browser", "server"):
+                    voice_mode = msg.get("voice")
                 await ws.send_json({"event": "state_change", "state": "LISTENING"})
                 continue
 
@@ -79,7 +86,7 @@ async def voice_socket(ws: WebSocket):
 
             if kind == "audio_chunk":
                 launch(_voice_turn(ws, db, msg, lang_pref, conversation_id,
-                                   lambda: interrupted, run_turn))
+                                   lambda: interrupted, voice_mode, run_turn))
                 continue
     except WebSocketDisconnect:
         log.info("voice client disconnected")
@@ -90,7 +97,8 @@ async def voice_socket(ws: WebSocket):
 
 
 async def _voice_turn(ws: WebSocket, db: Session, msg: dict, lang_pref: str,
-                    conversation_id: str | None, is_interrupted, run_turn) -> None:
+                    conversation_id: str | None, is_interrupted,
+                    voice_mode: str, run_turn) -> None:
     """One audio turn: transcribe, then answer — unless a newer turn cancels us."""
     await ws.send_json({"event": "state_change", "state": "PROCESSING"})
     try:
@@ -109,15 +117,36 @@ async def _transcribe_chunk(msg: dict) -> str:
     raw = base64.b64decode(msg.get("audio_b64", ""))
     if len(raw) < 500:
         raise RuntimeError("Audio too short — hold the mic button while speaking.")
+    if len(raw) > 1_500_000:
+        raise RuntimeError("That was too long — keep each turn under ~30 seconds.")
     suffix = ".webm" if "webm" in str(msg.get("mime", "")) else ".wav"
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as f:
         f.write(raw)
         path = f.name
-    text, _ = await stt_service.transcribe(path)
-    Path(path).unlink(missing_ok=True)
+    try:
+        # Fast duration probe — reject overlong clips BEFORE the slow STT.
+        try:
+            import av
+            with av.open(path) as container:
+                if container.duration and container.duration > 35_000_000:
+                    raise RuntimeError("That was too long — keep each turn under ~30 seconds.")
+        except RuntimeError:
+            raise
+        except Exception:
+            pass  # probe failed; let STT decide
+        text, _ = await stt_service.transcribe(path)
+    finally:
+        Path(path).unlink(missing_ok=True)
     if not text.strip():
         raise RuntimeError("Could not hear you — please try again.")
     return text
+
+
+def _resolved(value: tuple[str | None, str]) -> asyncio.Future:
+    """Pre-completed future that quacks like a finished synth Task."""
+    fut = asyncio.get_running_loop().create_future()
+    fut.set_result(value)
+    return fut
 
 
 async def _synth_one(sentence: str, lang: str) -> tuple[str | None, str]:
@@ -138,7 +167,8 @@ async def _synth_one(sentence: str, lang: str) -> tuple[str | None, str]:
 
 
 async def _handle_text(ws: WebSocket, db: Session, text: str, lang_pref: str,
-                       conversation_id: str | None, is_interrupted) -> str | None:
+                       conversation_id: str | None, is_interrupted,
+                       voice_mode: str = "server") -> str | None:
     conv = None
     if conversation_id:
         conv = db.query(Conversation).filter(Conversation.id == conversation_id).first()
@@ -175,6 +205,12 @@ async def _handle_text(ws: WebSocket, db: Session, text: str, lang_pref: str,
         nonlocal sent_index
         idx = sent_index
         sent_index += 1
+        if voice_mode == "browser":
+            # Instant path: client speaks the text itself — no synth, no wait.
+            clean = clean_for_speech(sentence)
+            if clean:
+                pending[idx] = _resolved((None, clean))
+            return
 
         async def _run() -> tuple[str | None, str]:
             async with sem:

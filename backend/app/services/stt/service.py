@@ -2,6 +2,7 @@
 import asyncio
 import time
 from pathlib import Path
+from app.core.config import settings
 from app.core.logging import get_logger
 from app.services.stt.denoise import denoise_to_wav
 
@@ -36,8 +37,11 @@ class STTService:
         provider = self._ensure()
         if provider is None:
             raise RuntimeError("STT engine not installed. Run: pip install faster-whisper")
-        # Denoise first (bike/fan/hum), then transcribe the cleaned clip.
-        clean_path = await asyncio.to_thread(denoise_to_wav, audio_path)
+        # Denoise first (bike/fan/hum) unless disabled for speed — then raw.
+        if settings.STT_DENOISE:
+            clean_path = await asyncio.to_thread(denoise_to_wav, audio_path)
+        else:
+            clean_path = audio_path
         try:
             text = await provider.transcribe(clean_path)
         finally:
