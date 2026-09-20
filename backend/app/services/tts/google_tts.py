@@ -28,7 +28,8 @@ def _chunks(text: str, limit: int = 180) -> list[str]:
 
 
 class GoogleTTSProvider(TTSProvider):
-    async def synthesize(self, text: str, language: str, out_path: str) -> str:
+    async def synthesize(self, text: str, language: str, out_path: str,
+                         voice_name: str = "Female") -> str:
         tl = _LANG.get(language, "en")
         parts: list[bytes] = []
         async with httpx.AsyncClient(timeout=30, headers={"User-Agent": _UA}) as client:

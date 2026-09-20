@@ -22,6 +22,7 @@ export function useVoiceSocket() {
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [langPref, setLangPref] = useState("AUTO");
+  const [voiceName, setVoiceName] = useState("Female");
   const [level, setLevel] = useState(0); // mic level for the orb
   const ws = useRef<WebSocket | null>(null);
   const media = useRef<MediaRecorder | null>(null);
@@ -58,7 +59,7 @@ export function useVoiceSocket() {
     sock.onopen = () => {
       setState("ONLINE");
       sock.send(JSON.stringify({ event: "config", language_preference: langPref,
-        conversation_id: conversationId, voice: "server" }));
+        conversation_id: conversationId, voice: "server", voice_name: voiceName }));
     };
     sock.onmessage = async (ev) => {
       const m = JSON.parse(ev.data);
@@ -418,6 +419,16 @@ export function useVoiceSocket() {
     } catch { /* */ }
   }
 
+  // Push voice choice to the server live (applies to the next sentence).
+  useEffect(() => {
+    if (ws.current?.readyState === WebSocket.OPEN) {
+      ws.current.send(JSON.stringify({ event: "config", language_preference: langPref,
+        conversation_id: conversationId, voice: "server", voice_name: voiceName }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voiceName]);
+
   return { state, messages, connect, disconnect, startTalk, stopTalk, sendText, interrupt,
-    langPref, setLangPref, level, inCall, hearingYou, startCall, endCall, speakTest };
+    langPref, setLangPref, level, inCall, hearingYou, startCall, endCall, speakTest,
+    voiceName, setVoiceName };
 }

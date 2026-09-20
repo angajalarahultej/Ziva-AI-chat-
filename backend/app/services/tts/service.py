@@ -3,6 +3,7 @@ import re
 import time
 import uuid
 from pathlib import Path
+from app.core.config import settings
 from app.core.logging import get_logger
 
 log = get_logger("tts.service")
@@ -72,10 +73,12 @@ class TTSService:
     def available(self) -> bool:
         return self._ensure() is not None
 
-    async def synthesize(self, text: str, language: str) -> tuple[str | None, float]:
+    async def synthesize(self, text: str, language: str,
+                           voice_name: str | None = None) -> tuple[str | None, float]:
         """Returns (audio_url_or_None, secs). None => frontend uses browser speech.
         Tries providers in order; a failing provider is broken-circuited."""
         t0 = time.perf_counter()
+        voice_name = voice_name or getattr(settings, "TTS_VOICE", "Female")
         for name in self._order:
             provider = self._get(name)
             if provider is None:
@@ -83,9 +86,10 @@ class TTSService:
             try:
                 fname = f"{uuid.uuid4()}.mp3"
                 out = str(AUDIO_DIR / fname)
-                await provider.synthesize(text, language, out)
+                await provider.synthesize(text, language, out, voice_name)
                 secs = time.perf_counter() - t0
-                log.info(f"tts done via={name} lang={language} chars={len(text)} secs={secs:.2f}")
+                log.info(f"tts done via={name} voice={voice_name} lang={language} "
+                         f"chars={len(text)} secs={secs:.2f}")
                 return f"/audio/{fname}", secs
             except Exception as e:
                 log.warning(f"tts provider {name} failed, breaking circuit: {e}")

@@ -36,6 +36,7 @@ async def voice_socket(ws: WebSocket):
     conversation_id: str | None = None
     lang_pref = "AUTO"
     voice_mode = "server"  # or "browser": client speaks text itself, skip synth
+    voice_name = "Female"  # or "Male": speaker option from the client
     interrupted = False
     current: asyncio.Task | None = None
 
@@ -53,7 +54,7 @@ async def voice_socket(ws: WebSocket):
         try:
             conversation_id = await _handle_text(
                 ws, db, text, lang_pref, conversation_id,
-                lambda: interrupted, voice_mode)
+                lambda: interrupted, voice_mode, voice_name)
         except asyncio.CancelledError:
             # Superseded by a newer question — the new turn owns the UI now.
             return
@@ -69,6 +70,8 @@ async def voice_socket(ws: WebSocket):
                 conversation_id = msg.get("conversation_id") or conversation_id
                 if msg.get("voice") in ("browser", "server"):
                     voice_mode = msg.get("voice")
+                if msg.get("voice_name") in ("Female", "Male"):
+                    voice_name = msg.get("voice_name")
                 await ws.send_json({"event": "state_change", "state": "LISTENING"})
                 continue
 
@@ -86,7 +89,7 @@ async def voice_socket(ws: WebSocket):
 
             if kind == "audio_chunk":
                 launch(_voice_turn(ws, db, msg, lang_pref, conversation_id,
-                                   lambda: interrupted, voice_mode, run_turn))
+                                   lambda: interrupted, voice_mode, voice_name, run_turn))
                 continue
     except WebSocketDisconnect:
         log.info("voice client disconnected")
@@ -98,7 +101,7 @@ async def voice_socket(ws: WebSocket):
 
 async def _voice_turn(ws: WebSocket, db: Session, msg: dict, lang_pref: str,
                     conversation_id: str | None, is_interrupted,
-                    voice_mode: str, run_turn) -> None:
+                    voice_mode: str, voice_name: str, run_turn) -> None:
     """One audio turn: transcribe, then answer — unless a newer turn cancels us."""
     await ws.send_json({"event": "state_change", "state": "PROCESSING"})
     try:
@@ -149,13 +152,13 @@ def _resolved(value: tuple[str | None, str]) -> asyncio.Future:
     return fut
 
 
-async def _synth_one(sentence: str, lang: str) -> tuple[str | None, str]:
+async def _synth_one(sentence: str, lang: str, voice_name: str = "Female") -> tuple[str | None, str]:
     """Synthesize + base64 in memory; temp file deleted at once. Returns (b64, clean)."""
     clean = clean_for_speech(sentence)
     if not clean:
         return None, ""
     try:
-        audio_url, _ = await tts_service.synthesize(clean, lang)
+        audio_url, _ = await tts_service.synthesize(clean, lang, voice_name)
         if audio_url:
             fpath = AUDIO_DIR / Path(audio_url).name
             data = fpath.read_bytes()
@@ -168,7 +171,8 @@ async def _synth_one(sentence: str, lang: str) -> tuple[str | None, str]:
 
 async def _handle_text(ws: WebSocket, db: Session, text: str, lang_pref: str,
                        conversation_id: str | None, is_interrupted,
-                       voice_mode: str = "server") -> str | None:
+                       voice_mode: str = "server",
+                       voice_name: str = "Female") -> str | None:
     conv = None
     if conversation_id:
         conv = db.query(Conversation).filter(Conversation.id == conversation_id).first()
@@ -214,7 +218,7 @@ async def _handle_text(ws: WebSocket, db: Session, text: str, lang_pref: str,
 
         async def _run() -> tuple[str | None, str]:
             async with sem:
-                return await _synth_one(sentence, lang)
+                return await _synth_one(sentence, lang, voice_name)
 
         pending[idx] = asyncio.create_task(_run())
 

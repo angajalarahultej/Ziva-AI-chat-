@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     STT_DENOISE: bool = False
 
     TTS_PROVIDER: str = "edge"
+    # Default speaker: "Female" (sweet Indian) or "Male". Per-client override via WS.
+    TTS_VOICE: str = "Female"
     TTS_VOICE_EN: str = "en-IN-NeerjaNeural"
     TTS_VOICE_TE: str = "te-IN-ShrutiNeural"
     TTS_VOICE_HI: str = "hi-IN-AnanyaNeural"

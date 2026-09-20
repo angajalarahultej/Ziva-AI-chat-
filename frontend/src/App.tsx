@@ -96,6 +96,14 @@ export default function App() {
                     </button>
                   )}
                   <select
+                    value={v.voiceName}
+                    onChange={(e) => v.setVoiceName(e.target.value)}
+                    title="Voice"
+                    className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none"
+                  >
+                    {["Female", "Male"].map((x) => <option key={x} value={x} className="bg-slate-900">{x}</option>)}
+                  </select>
+                  <select
                     value={v.langPref}
                     onChange={(e) => v.setLangPref(e.target.value)}
                     title="Language"
