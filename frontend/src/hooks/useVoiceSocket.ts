@@ -27,7 +27,7 @@ export function useVoiceSocket() {
   const media = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
   const audioEl = useRef<HTMLAudioElement | null>(null);
-  const audioQueue = useRef<string[]>([]);
+  const audioQueue = useRef<{ url: string; text: string; lang: string }[]>([]);
   const playing = useRef(false);
   const speechQueue = useRef<{ text: string; lang: string }[]>([]);
   const speaking = useRef(false);
@@ -58,7 +58,7 @@ export function useVoiceSocket() {
     sock.onopen = () => {
       setState("ONLINE");
       sock.send(JSON.stringify({ event: "config", language_preference: langPref,
-        conversation_id: conversationId, voice: "browser" }));
+        conversation_id: conversationId, voice: "server" }));
     };
     sock.onmessage = async (ev) => {
       const m = JSON.parse(ev.data);
@@ -92,8 +92,9 @@ export function useVoiceSocket() {
           break;
         case "assistant_audio":
           if (m.final) break;
-          if (m.audio_b64) enqueueAudio(`data:audio/mpeg;base64,${m.audio_b64}`);
-          else if (m.audio_url) enqueueAudio(`${API}${m.audio_url}`);
+          // Server audio first (historically reliable), browser speech as fallback.
+          if (m.audio_b64) enqueueAudio(`data:audio/mpeg;base64,${m.audio_b64}`, m.text || "", m.language || "en");
+          else if (m.audio_url) enqueueAudio(`${API}${m.audio_url}`, m.text || "", m.language || "en");
           else if (m.text) enqueueSpeech(m.text, m.language);
           break;
         case "error":
@@ -124,13 +125,20 @@ export function useVoiceSocket() {
     const next = audioQueue.current.shift();
     if (!next) return;
     playing.current = true;
-    const a = new Audio(next);
+    const a = new Audio(next.url);
     audioEl.current = a;
+    const fallback = () => {
+      // Server audio failed (blocked/decoding) — speak the text instead.
+      if (next.text) enqueueSpeech(next.text, next.lang);
+    };
     a.onended = () => { playing.current = false; audioEl.current = null; playNext(); };
-    a.onerror = () => { playing.current = false; audioEl.current = null; playNext(); };
-    a.play().catch(() => { playing.current = false; playNext(); });
+    a.onerror = () => { playing.current = false; audioEl.current = null; fallback(); playNext(); };
+    a.play().catch(() => { playing.current = false; fallback(); playNext(); });
   };
-  const enqueueAudio = (url: string) => { audioQueue.current.push(url); playNext(); };
+  const enqueueAudio = (url: string, text = "", lang = "en") => {
+    audioQueue.current.push({ url, text, lang });
+    playNext();
+  };
 
   const speakNext = () => {
     if (speaking.current) return;
