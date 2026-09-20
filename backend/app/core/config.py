@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     LLM_PROVIDER: str = "openrouter"
     LLM_MODEL: str = "nex-agi/nex-n2.5-mini:free"
     LLM_FALLBACK_MODEL: str = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"
-    LLM_MAX_TOKENS: int = 300
+    LLM_MAX_TOKENS: int = 150
     LLM_TEMPERATURE: float = 0.7
     # Local model (Ollama) — set LLM_PROVIDER=ollama to use, no key needed
     LLM_LOCAL_URL: str = "http://localhost:11434"

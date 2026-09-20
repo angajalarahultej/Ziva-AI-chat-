@@ -104,6 +104,13 @@ export default function App() {
                     {LANGS.map((l) => <option key={l} value={l} className="bg-slate-900">{l}</option>)}
                   </select>
                   <button
+                    onClick={v.speakTest}
+                    title="Test speaker — if this is silent, the device has no usable voice"
+                    className="rounded-xl border border-white/10 px-4 py-3 text-sm transition hover:border-white/25"
+                  >
+                    🔊
+                  </button>
+                  <button
                     onClick={() => { if (v.inCall) v.endCall(); v.disconnect(); }}
                     className="rounded-xl border border-white/10 px-5 py-3 text-sm text-slate-300 transition hover:border-white/25"
                   >

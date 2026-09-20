@@ -166,6 +166,21 @@ export function useVoiceSocket() {
   };
   const enqueueSpeech = (text: string, lang: string) => { speechQueue.current.push({ text, lang }); speakNext(); };
 
+  /** One-tap voice self-test: speaks immediately inside the click gesture.
+   *  If THIS is silent, the OS/browser has no usable voice (not our pipeline). */
+  const speakTest = () => {
+    try {
+      speechSynthesis.cancel();
+      speaking.current = false;
+      if (watchdog.current) clearTimeout(watchdog.current);
+      const lang = langPref === "TELUGU" ? "te" : langPref === "HINDI" ? "hi" : "en";
+      enqueueSpeech(
+        lang === "te" ? "హే బాస్, నేను జివాని. నా మాట వినిపిస్తోందా?"
+        : "Hey Boss, Ziva here. Can you hear me?",
+        lang);
+    } catch { /* speech unsupported */ }
+  };
+
   const stopAudio = () => {
     audioQueue.current = [];
     speechQueue.current = [];
@@ -396,5 +411,5 @@ export function useVoiceSocket() {
   }
 
   return { state, messages, connect, disconnect, startTalk, stopTalk, sendText, interrupt,
-    langPref, setLangPref, level, inCall, hearingYou, startCall, endCall };
+    langPref, setLangPref, level, inCall, hearingYou, startCall, endCall, speakTest };
 }
